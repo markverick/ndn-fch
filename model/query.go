@@ -12,7 +12,6 @@ import (
 type Query struct {
 	Count     int
 	Transport TransportType
-	Forwarder string
 	IPv4      bool
 	IPv6      bool
 	Position  LonLat
@@ -30,21 +29,16 @@ func (q Query) matchTransport(router RouterAvail) bool {
 }
 
 func (q Query) matchNetwork(router RouterAvail) bool {
-	return q.Network == "" || strings.HasPrefix(router.Prefix(), q.Network)
-}
-
-func (q Query) matchForwarder(router RouterAvail) bool {
-	forwarder, ok := router.Router.(interface{ Forwarder() string })
-	if q.Forwarder == "" {
-		return !ok || forwarder.Forwarder() != "ndnd"
+	if q.Network == "" {
+		return !strings.HasPrefix(router.Prefix(), "/ndnd/")
 	}
-	return ok && forwarder.Forwarder() == q.Forwarder
+	return strings.HasPrefix(router.Prefix(), q.Network)
 }
 
 // Execute executes a query.
 func (q Query) Execute(avail []RouterAvail) (res []RouterAvail) {
 	for _, router := range avail {
-		if q.matchTransport(router) && q.matchNetwork(router) && q.matchForwarder(router) {
+		if q.matchTransport(router) && q.matchNetwork(router) {
 			res = append(res, router)
 		}
 	}
@@ -65,7 +59,6 @@ func ParseQueries(qs string) (list []Query) {
 	q := Query{
 		Count:     1,
 		Transport: TransportUDP,
-		Forwarder: v.Get("forwarder"),
 		IPv4:      v.Get("ipv4") != "0",
 		IPv6:      v.Get("ipv6") != "0",
 	}

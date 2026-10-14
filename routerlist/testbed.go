@@ -40,7 +40,6 @@ type testbedRouter struct {
 	node      testbedNode
 	host      string
 	udpPort   string
-	forwarder string
 	hasIPv4   bool
 	hasIPv6   bool
 	neighbors map[string]int
@@ -49,14 +48,7 @@ type testbedRouter struct {
 var _ model.Router = testbedRouter{}
 
 func (r testbedRouter) ID() string {
-	if r.forwarder == "ndnd" {
-		return r.node.ShortName + "-ndnd"
-	}
 	return r.node.ShortName
-}
-
-func (r testbedRouter) Forwarder() string {
-	return r.forwarder
 }
 
 func (r testbedRouter) Position() (pos model.LonLat) {
@@ -110,12 +102,12 @@ type testbedNode struct {
 
 type testbedNodeNDNd struct {
 	UDPPort uint16 `json:"udp_port"`
+	Prefix  string `json:"prefix"`
 }
 
 func (n testbedNode) Router() (r *testbedRouter) {
 	r = &testbedRouter{
-		udpPort:   model.DefaultUDPPort,
-		forwarder: "nfd",
+		udpPort: model.DefaultUDPPort,
 	}
 
 	u, e := url.Parse(n.Site)
@@ -170,9 +162,15 @@ func (n testbedNode) Routers() []model.Router {
 		return routers
 	}
 
+	prefix := strings.TrimPrefix(n.NDNd.Prefix, "ndn:")
+	if !strings.HasPrefix(prefix, "/ndnd/") {
+		return routers
+	}
+
 	ndnd := *r
 	ndnd.udpPort = strconv.Itoa(int(n.NDNd.UDPPort))
-	ndnd.forwarder = "ndnd"
+	ndnd.node.ShortName += "-ndnd"
+	ndnd.node.Prefix = prefix
 	routers = append(routers, ndnd)
 	return routers
 }
