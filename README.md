@@ -27,6 +27,10 @@ Query parameters:
 * **network**: desired network.
   * Acceptable values: `ndn`, `yoursunny`.
   * Default is any.
+* **forwarder**: forwarder implementation.
+  * Set to `ndnd` to return NDNd endpoints. When omitted, NDNd endpoints are excluded to preserve existing client behavior.
+
+Testbed node entries may include an optional `ndnd` object with a `udp_port` field, for example `"ndnd": {"udp_port": 6364}`. Entries without this object continue to provide only their existing NFD endpoint.
 
 Response format:
 

@@ -26,3 +26,51 @@ func TestQuery(t *testing.T) {
 		assert.InDelta(31.2304, q.Position[1], 0.0001)
 	}
 }
+
+type queryTestRouter struct {
+	id        string
+	forwarder string
+}
+
+func (r queryTestRouter) ID() string                                 { return r.id }
+func (queryTestRouter) Position() model.LonLat                       { return model.LonLat{} }
+func (queryTestRouter) Prefix() string                               { return "/ndn/test" }
+func (queryTestRouter) ConnectString(model.TransportIPFamily) string { return "router.example:6363" }
+func (queryTestRouter) Neighbors() map[string]int                    { return nil }
+func (r queryTestRouter) Forwarder() string                          { return r.forwarder }
+
+func TestQueryForwarder(t *testing.T) {
+	available := []model.RouterAvail{
+		{
+			Router: queryTestRouter{id: "nfd", forwarder: "nfd"},
+			Available: map[model.TransportIPFamily]bool{
+				{Transport: model.TransportUDP, Family: model.IPv4}: true,
+			},
+		},
+		{
+			Router: queryTestRouter{id: "ndnd", forwarder: "ndnd"},
+			Available: map[model.TransportIPFamily]bool{
+				{Transport: model.TransportUDP, Family: model.IPv4}: true,
+			},
+		},
+	}
+
+	legacy := model.ParseQueries("cap=udp&k=2")[0].Execute(available)
+	assert.Equal(t, []string{"nfd"}, routerIDs(legacy))
+
+	nfd := model.ParseQueries("cap=udp&k=2&forwarder=nfd")[0].Execute(available)
+	assert.Equal(t, []string{"nfd"}, routerIDs(nfd))
+
+	ndnd := model.ParseQueries("cap=udp&k=2&forwarder=ndnd")[0].Execute(available)
+	assert.Equal(t, []string{"ndnd"}, routerIDs(ndnd))
+
+	unknown := model.ParseQueries("cap=udp&k=2&forwarder=unknown")[0].Execute(available)
+	assert.Empty(t, unknown)
+}
+
+func routerIDs(routers []model.RouterAvail) (ids []string) {
+	for _, router := range routers {
+		ids = append(ids, router.ID())
+	}
+	return ids
+}

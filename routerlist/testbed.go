@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +39,8 @@ var (
 type testbedRouter struct {
 	node      testbedNode
 	host      string
+	udpPort   string
+	forwarder string
 	hasIPv4   bool
 	hasIPv6   bool
 	neighbors map[string]int
@@ -46,7 +49,14 @@ type testbedRouter struct {
 var _ model.Router = testbedRouter{}
 
 func (r testbedRouter) ID() string {
+	if r.forwarder == "ndnd" {
+		return r.node.ShortName + "-ndnd"
+	}
 	return r.node.ShortName
+}
+
+func (r testbedRouter) Forwarder() string {
+	return r.forwarder
 }
 
 func (r testbedRouter) Position() (pos model.LonLat) {
@@ -72,7 +82,7 @@ func (r testbedRouter) ConnectString(tf model.TransportIPFamily) string {
 
 	switch tf.Transport {
 	case model.TransportUDP:
-		return net.JoinHostPort(r.host, model.DefaultUDPPort)
+		return net.JoinHostPort(r.host, r.udpPort)
 	case model.TransportWebSocket:
 		return (&url.URL{
 			Scheme: "wss",
@@ -88,17 +98,25 @@ func (r testbedRouter) Neighbors() map[string]int {
 }
 
 type testbedNode struct {
-	ShortName    string    `json:"shortname"`
-	Site         string    `json:"site"`
-	IPAddresses  []string  `json:"ip_addresses"`
-	Position     []float64 `json:"position"`
-	RealPosition []float64 `json:"_real_position"`
-	Prefix       string    `json:"prefix"`
-	Neighbors    []string  `json:"neighbors"`
+	ShortName    string           `json:"shortname"`
+	Site         string           `json:"site"`
+	IPAddresses  []string         `json:"ip_addresses"`
+	Position     []float64        `json:"position"`
+	RealPosition []float64        `json:"_real_position"`
+	Prefix       string           `json:"prefix"`
+	Neighbors    []string         `json:"neighbors"`
+	NDNd         *testbedNodeNDNd `json:"ndnd,omitempty"`
+}
+
+type testbedNodeNDNd struct {
+	UDPPort uint16 `json:"udp_port"`
 }
 
 func (n testbedNode) Router() (r *testbedRouter) {
-	r = &testbedRouter{}
+	r = &testbedRouter{
+		udpPort:   model.DefaultUDPPort,
+		forwarder: "nfd",
+	}
 
 	u, e := url.Parse(n.Site)
 	if e != nil {
@@ -142,6 +160,23 @@ func (n testbedNode) Router() (r *testbedRouter) {
 	return r
 }
 
+func (n testbedNode) Routers() []model.Router {
+	r := n.Router()
+	if r == nil {
+		return nil
+	}
+	routers := []model.Router{*r}
+	if n.NDNd == nil || n.NDNd.UDPPort == 0 {
+		return routers
+	}
+
+	ndnd := *r
+	ndnd.udpPort = strconv.Itoa(int(n.NDNd.UDPPort))
+	ndnd.forwarder = "ndnd"
+	routers = append(routers, ndnd)
+	return routers
+}
+
 func fetchTestbedNodes() (m map[string]testbedNode) {
 	response, e := http.Get(testbedNodesURI)
 	if e != nil {
@@ -183,10 +218,7 @@ func updateTestbedRouters() {
 
 	routers := []model.Router{}
 	for _, n := range nodes {
-		r := n.Router()
-		if r != nil {
-			routers = append(routers, *r)
-		}
+		routers = append(routers, n.Routers()...)
 	}
 
 	testbedRoutersLock.Lock()
