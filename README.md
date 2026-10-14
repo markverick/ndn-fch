@@ -25,10 +25,10 @@ Query parameters:
 * **lon** and **lat**: client position.
   * Default is IP geolocation.
 * **network**: desired network.
-  * Use `ndn`, `yoursunny`, or `ndnd` to select the corresponding name prefix.
-  * When omitted, `/ndnd/` endpoints are excluded to preserve existing client behavior.
+  * Acceptable values: `ndn`, `yoursunny`, or `ndnd`.
+  * Default is any except `ndnd`.
 
-Testbed node entries may include an optional `ndnd` object with `udp_port` and `prefix` fields, for example `"ndnd": {"udp_port": 6364, "prefix": "ndn:/ndnd/site"}`. Entries without this object continue to provide only their existing NFD endpoint.
+Testbed node entries may optionally include `ndnd`: `"ndnd": {"udp_port": 6364, "prefix": "ndn:/ndnd/site"}`. Without it, only the existing NFD endpoint is used.
 
 Response format:
 
